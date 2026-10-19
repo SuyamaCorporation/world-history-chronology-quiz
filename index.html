@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World History Chronological Event Ordering Quiz</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  .event-card {
+    cursor: grab;
+    transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    user-select: none;
+  }
+  .event-card:active { cursor: grabbing; }
+  .event-card.dragging {
+    opacity: 0.5;
+    transform: scale(1.02);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+  }
+  .event-card.drag-over {
+    border-color: #818cf8;
+    background: #1e1b4b;
+  }
+  @keyframes slideDown {
+    from{opacity:0;transform:translateY(-10px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  .slide-down { animation: slideDown 0.3s ease-out; }
+  @keyframes correctAnim {
+    0%{background:#1f2937} 50%{background:#064e3b} 100%{background:#1f2937}
+  }
+  .correct-flash { animation: correctAnim 0.5s ease; }
+  @keyframes wrongAnim {
+    0%{background:#1f2937} 50%{background:#450a0a} 100%{background:#1f2937}
+  }
+  .wrong-flash { animation: wrongAnim 0.5s ease; }
+  .result-correct { border-left: 4px solid #4ade80; }
+  .result-wrong { border-left: 4px solid #f87171; }
+</style>
+</head>
+<body class="bg-gray-950 text-white min-h-screen">
+
+<div class="max-w-2xl mx-auto px-4 py-8">
+  <!-- Header -->
+  <div class="text-center mb-6">
+    <h1 class="text-3xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent mb-1">
+      History in Order
+    </h1>
+    <p class="text-gray-400 text-sm">Arrange historical events from earliest to latest</p>
+  </div>
+
+  <!-- START SCREEN -->
+  <div id="startScreen" class="bg-gray-900 rounded-2xl p-8">
+    <div class="text-center mb-6">
+      <div class="text-5xl mb-3">🏛️</div>
+      <h2 class="text-2xl font-bold mb-2">Test Your History Knowledge</h2>
+      <p class="text-gray-400">10 rounds · 5 events per round · Drag to reorder</p>
+    </div>
+
+    <div class="mb-6">
+      <p class="text-sm text-gray-400 mb-3 font-medium text-center">Choose Category</p>
+      <div class="grid grid-cols-2 gap-3">
+        <button onclick="startGame('all')" class="bg-gradient-to-br from-amber-700 to-orange-800 hover:from-amber-600 hover:to-orange-700 rounded-xl p-4 text-left transition-all" aria-label="All eras">
+          <div class="text-2xl mb-1">🌍</div>
+          <div class="font-semibold">All Eras</div>
+          <div class="text-xs text-gray-300">Mix of all time periods</div>
+        </button>
+        <button onclick="startGame('ancient')" class="bg-gradient-to-br from-stone-700 to-amber-900 hover:from-stone-600 hover:to-amber-800 rounded-xl p-4 text-left transition-all" aria-label="Ancient history">
+          <div class="text-2xl mb-1">🏺</div>
+          <div class="font-semibold">Ancient</div>
+          <div class="text-xs text-gray-300">Before 500 CE</div>
+        </button>
+        <button onclick="startGame('medieval')" class="bg-gradient-to-br from-gray-700 to-slate-800 hover:from-gray-600 hover:to-slate-700 rounded-xl p-4 text-left transition-all" aria-label="Medieval history">
+          <div class="text-2xl mb-1">⚔️</div>
+          <div class="font-semibold">Medieval</div>
+          <div class="text-xs text-gray-300">500 – 1500 CE</div>
+        </button>
+        <button onclick="startGame('modern')" class="bg-gradient-to-br from-blue-900 to-indigo-900 hover:from-blue-800 hover:to-indigo-800 rounded-xl p-4 text-left transition-all" aria-label="Modern history">
+          <div class="text-2xl mb-1">🚀</div>
+          <div class="font-semibold">Modern</div>
+          <div class="text-xs text-gray-300">1500 CE – Present</div>
+        </button>
+      </div>
+    </div>
+
+    <div class="bg-gray-800 rounded-xl p-4 text-sm text-gray-400 mb-4">
+      <p class="font-medium text-gray-200 mb-2">Scoring</p>
+      <div class="grid grid-cols-4 gap-2 text-center">
+        <div><div class="text-white font-bold text-lg">5</div><div>All correct</div></div>
+        <div><div class="text-yellow-400 font-bold text-lg">3</div><div>1 wrong</div></div>
+        <div><div class="text-orange-400 font-bold text-lg">1</div><div>2 wrong</div></div>
+        <div><div class="text-red-400 font-bold text-lg">0</div><div>3+ wrong</div></div>
+      </div>
+    </div>
+
+    <div id="highScoreStart" class="text-center text-sm text-gray-500"></div>
+  </div>
+
+  <!-- GAME SCREEN -->
+  <div id="gameScreen" class="hidden">
+    <!-- Progress -->
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-sm text-gray-400">Round <span id="roundNum" class="font-bold text-white">1</span>/10</span>
+      <span class="text-sm">Score: <span id="scoreNum" class="font-bold text-amber-400">0</span></span>
+    </div>
+    <div class="h-1.5 bg-gray-800 rounded-full mb-5">
+      <div id="progressBar" class="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full transition-all" style="width:0%"></div>
+    </div>
+
+    <div id="categoryTag" class="text-center mb-3"></div>
+    <p class="text-center text-gray-400 text-sm mb-4">Drag events into chronological order (earliest first)</p>
+
+    <!-- Events list -->
+    <div id="eventList" class="space-y-2 mb-5" aria-label="Historical events to order">
+      <!-- Filled by JS -->
+    </div>
+
+    <!-- Up/Down buttons note -->
+    <p class="text-center text-xs text-gray-600 mb-4">Drag to reorder, or use ▲▼ buttons</p>
+
+    <button onclick="submitOrder()" id="submitBtn" class="w-full bg-amber-700 hover:bg-amber-600 rounded-xl py-3 font-semibold transition-all" aria-label="Submit your order">
+      Check Order ✓
+    </button>
+
+    <!-- Feedback -->
+    <div id="feedbackArea" class="hidden mt-5 slide-down">
+      <div id="feedbackContent"></div>
+      <button onclick="nextRound()" id="nextRoundBtn" class="mt-4 w-full bg-indigo-700 hover:bg-indigo-600 rounded-xl py-3 font-semibold transition-all" aria-label="Next round">
+        Next Round →
+      </button>
+    </div>
+  </div>
+
+  <!-- RESULT SCREEN -->
+  <div id="resultScreen" class="hidden bg-gray-900 rounded-2xl p-8 text-center">
+    <div id="resultEmoji" class="text-6xl mb-4">🏆</div>
+    <h2 id="resultTitle" class="text-2xl font-bold mb-2"></h2>
+    <p id="resultScore" class="text-4xl font-bold text-amber-400 mb-2"></p>
+    <p id="resultDetail" class="text-gray-400 mb-2"></p>
+    <p id="hsMsg" class="text-yellow-400 font-semibold mb-6"></p>
+
+    <div id="roundBreakdown" class="text-left space-y-2 max-h-64 overflow-y-auto mb-6 bg-gray-800 rounded-xl p-4"></div>
+
+    <div class="flex gap-3">
+      <button onclick="restartGame()" class="flex-1 bg-amber-700 hover:bg-amber-600 rounded-xl py-3 font-semibold transition-all" aria-label="Play again">
+        🔄 Play Again
+      </button>
+      <button onclick="showStart()" class="flex-1 bg-gray-700 hover:bg-gray-600 rounded-xl py-3 font-semibold transition-all" aria-label="Back to menu">
+        🏠 Menu
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const EVENT_SETS = {
+  ancient: [
+    {events:[
+      {year:-3100,text:'Unification of Upper and Lower Egypt under Pharaoh Narmer'},
+      {year:-776,text:'First Olympic Games held in Olympia, Greece'},
+      {year:-509,text:'Roman Republic founded after expulsion of Tarquin the Proud'},
+      {year:-323,text:'Death of Alexander the Great in Babylon'},
+      {year:79,text:'Mount Vesuvius erupts, destroying Pompeii'},
+    ]},
+    {events:[
+      {year:-2560,text:'Great Pyramid of Giza completed'},
+      {year:-1274,text:'Battle of Kadesh between Egypt and the Hittite Empire'},
+      {year:-753,text:'Legendary founding of Rome by Romulus'},
+      {year:-338,text:'Battle of Chaeronea: Philip II of Macedon defeats the Greeks'},
+      {year:70,text:'Roman destruction of the Second Temple in Jerusalem'},
+    ]},
+    {events:[
+      {year:-600,text:'City of Babylon reaches its height under Nebuchadnezzar II'},
+      {year:-490,text:'Battle of Marathon: Athens defeats Persian invasion force'},
+      {year:-221,text:'Qin Shi Huang unifies China, creating the first imperial dynasty'},
+      {year:-44,text:'Assassination of Julius Caesar on the Ides of March'},
+      {year:476,text:'Fall of the Western Roman Empire; Romulus Augustulus deposed'},
+    ]},
+    {events:[
+      {year:-3300,text:'Writing (cuneiform) invented in Sumer, Mesopotamia'},
+      {year:-1000,text:'Phoenicians develop alphabetic writing system'},
+      {year:-399,text:'Execution of Socrates in Athens by hemlock'},
+      {year:-202,text:'Battle of Zama: Scipio Africanus defeats Hannibal'},
+      {year:313,text:'Edict of Milan grants religious tolerance in the Roman Empire'},
+    ]},
+    {events:[
+      {year:-4000,text:'Bronze Age begins in the Middle East'},
+      {year:-1000,text:'Iron Age spreads across Europe and Asia'},
+      {year:-800,text:'Homer composes the Iliad and Odyssey'},
+      {year:27,text:'Augustus Caesar becomes first Roman Emperor'},
+      {year:395,text:'Roman Empire permanently splits into East and West'},
+    ]},
+  ],
+  medieval: [
+    {events:[
+      {year:570,text:'Birth of the Prophet Muhammad in Mecca'},
+      {year:711,text:'Moors invade the Iberian Peninsula from North Africa'},
+      {year:1066,text:'Norman Conquest of England: Battle of Hastings'},
+      {year:1215,text:'Magna Carta signed by King John at Runnymede'},
+      {year:1348,text:'Black Death reaches Europe, killing one-third of the population'},
+    ]},
+    {events:[
+      {year:622,text:'Muhammad\'s Hijra: migration from Mecca to Medina; Islamic calendar begins'},
+      {year:800,text:'Charlemagne crowned Emperor of the Romans by Pope Leo III'},
+      {year:1095,text:'Pope Urban II calls for the First Crusade at Council of Clermont'},
+      {year:1206,text:'Genghis Khan unites Mongol tribes and begins conquest of Asia'},
+      {year:1453,text:'Fall of Constantinople to Ottoman Turks; end of Byzantine Empire'},
+    ]},
+    {events:[
+      {year:732,text:'Battle of Tours: Charles Martel halts Muslim advance into Europe'},
+      {year:1000,text:'Leif Erikson reaches North America (Vinland)'},
+      {year:1054,text:'Great Schism splits Christianity into Roman Catholic and Eastern Orthodox'},
+      {year:1241,text:'Mongols defeat Polish-German forces at Battle of Legnica'},
+      {year:1337,text:'Start of the Hundred Years\' War between England and France'},
+    ]},
+    {events:[
+      {year:500,text:'Fall of Western Roman Empire accelerates spread of feudalism in Europe'},
+      {year:868,text:'Diamond Sutra printed in China — world\'s oldest dated printed book'},
+      {year:1100,text:'First universities established in Bologna and Paris'},
+      {year:1280,text:'Marco Polo reaches Kublai Khan\'s court in China'},
+      {year:1415,text:'Portuguese capture Ceuta, beginning the Age of Exploration'},
+    ]},
+    {events:[
+      {year:793,text:'Viking raid on Lindisfarne marks beginning of the Viking Age'},
+      {year:1000,text:'Kingdom of Hungary founded by Stephen I'},
+      {year:1147,text:'Second Crusade launched in response to fall of Edessa'},
+      {year:1299,text:'Ottoman Empire founded by Osman I in Anatolia'},
+      {year:1431,text:'Joan of Arc burned at the stake in Rouen, France'},
+    ]},
+  ],
+  modern: [
+    {events:[
+      {year:1492,text:'Christopher Columbus makes first contact with the Americas'},
+      {year:1687,text:'Isaac Newton publishes Principia Mathematica'},
+      {year:1776,text:'American Declaration of Independence signed'},
+      {year:1789,text:'French Revolution begins with storming of the Bastille'},
+      {year:1859,text:'Darwin publishes On the Origin of Species'},
+    ]},
+    {events:[
+      {year:1517,text:'Martin Luther nails his 95 Theses, sparking the Protestant Reformation'},
+      {year:1769,text:'James Watt patents improved steam engine, igniting Industrial Revolution'},
+      {year:1815,text:'Napoleon defeated at Battle of Waterloo; exiled to Saint Helena'},
+      {year:1869,text:'Suez Canal opens, connecting Mediterranean and Red Seas'},
+      {year:1914,text:'Assassination of Archduke Franz Ferdinand starts World War I'},
+    ]},
+    {events:[
+      {year:1543,text:'Copernicus publishes heliocentric model of the solar system'},
+      {year:1748,text:'Excavations begin at Pompeii, pioneering modern archaeology'},
+      {year:1848,text:'Year of Revolutions sweeps across Europe; Marx publishes Communist Manifesto'},
+      {year:1903,text:'Wright Brothers achieve first powered airplane flight at Kitty Hawk'},
+      {year:1945,text:'End of World War II: atomic bombs dropped on Hiroshima and Nagasaki'},
+    ]},
+    {events:[
+      {year:1609,text:'Galileo uses telescope to observe moons of Jupiter'},
+      {year:1804,text:'Napoleon Bonaparte crowns himself Emperor of France'},
+      {year:1865,text:'American Civil War ends; President Lincoln assassinated'},
+      {year:1917,text:'Russian Revolution: Tsar Nicholas II abdicates; Bolsheviks seize power'},
+      {year:1969,text:'Apollo 11: Neil Armstrong becomes first human to walk on the Moon'},
+    ]},
+    {events:[
+      {year:1588,text:'Spanish Armada defeated by English fleet under Sir Francis Drake'},
+      {year:1776,text:'Adam Smith publishes The Wealth of Nations'},
+      {year:1861,text:'Italy unified under King Victor Emmanuel II'},
+      {year:1928,text:'Alexander Fleming discovers penicillin'},
+      {year:1989,text:'Berlin Wall falls, leading to German reunification'},
+    ]},
+    {events:[
+      {year:1521,text:'Hernán Cortés conquers the Aztec Empire'},
+      {year:1620,text:'Pilgrims arrive in America on the Mayflower'},
+      {year:1776,text:'American Declaration of Independence signed'},
+      {year:1898,text:'Spanish-American War; US acquires Philippines, Puerto Rico, and Guam'},
+      {year:1963,text:'Assassination of US President John F. Kennedy in Dallas'},
+    ]},
+    {events:[
+      {year:1600,text:'British East India Company founded, beginning colonial expansion in Asia'},
+      {year:1789,text:'George Washington inaugurated as first US President'},
+      {year:1836,text:'Texas wins independence from Mexico at the Battle of San Jacinto'},
+      {year:1905,text:'Einstein publishes Special Theory of Relativity'},
+      {year:1991,text:'Dissolution of the Soviet Union; Cold War ends'},
+    ]},
+    {events:[
+      {year:1519,text:'Magellan\'s expedition begins first circumnavigation of the Earth'},
+      {year:1687,text:'Newton\'s Laws of Motion published in Principia Mathematica'},
+      {year:1861,text:'American Civil War begins at Fort Sumter'},
+      {year:1912,text:'RMS Titanic sinks on its maiden voyage'},
+      {year:1953,text:'Structure of DNA discovered by Watson and Crick'},
+    ]},
+  ],
+};
+
+EVENT_SETS.all = [
+  ...EVENT_SETS.ancient,
+  ...EVENT_SETS.medieval,
+  ...EVENT_SETS.modern,
+];
+
+function escapeHtml(s) {
+  const d = document.createElement('div'); d.appendChild(document.createTextNode(String(s))); return d.innerHTML;
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length-1; i>0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function formatYear(y) {
+  if (y < 0) return `${Math.abs(y)} BCE`;
+  return `${y} CE`;
+}
+
+let gameState = null;
+let dragSrcIdx = null;
+let currentCategory = 'all';
+
+function getHighScore(cat) {
+  return parseInt(localStorage.getItem(`histQuiz_hs_${cat}`) || '0');
+}
+function setHighScore(cat, score) {
+  if (score > getHighScore(cat)) {
+    localStorage.setItem(`histQuiz_hs_${cat}`, score);
+    return true;
+  }
+  return false;
+}
+
+function showStart() {
+  document.getElementById('startScreen').classList.remove('hidden');
+  document.getElementById('gameScreen').classList.add('hidden');
+  document.getElementById('resultScreen').classList.add('hidden');
+  document.getElementById('highScoreStart').textContent =
+    `High scores — All: ${getHighScore('all')} · Ancient: ${getHighScore('ancient')} · Medieval: ${getHighScore('medieval')} · Modern: ${getHighScore('modern')}`;
+}
+
+function startGame(category) {
+  currentCategory = category;
+  const pool = shuffle([...EVENT_SETS[category]]);
+  const rounds = pool.slice(0, 10);
+
+  gameState = {
+    category,
+    rounds: rounds.map(r => ({ ...r, shuffled: shuffle(r.events) })),
+    current: 0,
+    totalScore: 0,
+    roundScores: [],
+    currentOrder: [],
+    submitted: false,
+  };
+
+  document.getElementById('startScreen').classList.add('hidden');
+  document.getElementById('resultScreen').classList.add('hidden');
+  document.getElementById('gameScreen').classList.remove('hidden');
+
+  renderRound();
+}
+
+function restartGame() {
+  startGame(currentCategory);
+}
+
+function renderRound() {
+  const gs = gameState;
+  const round = gs.rounds[gs.current];
+
+  document.getElementById('roundNum').textContent = gs.current + 1;
+  document.getElementById('scoreNum').textContent = gs.totalScore;
+  document.getElementById('progressBar').style.width = `${(gs.current/10)*100}%`;
+  document.getElementById('feedbackArea').classList.add('hidden');
+  document.getElementById('submitBtn').disabled = false;
+  document.getElementById('submitBtn').classList.remove('opacity-50');
+  gs.submitted = false;
+
+  const catLabels = { all:'🌍 All Eras', ancient:'🏺 Ancient', medieval:'⚔️ Medieval', modern:'🚀 Modern' };
+  document.getElementById('categoryTag').innerHTML = `<span class="inline-block bg-gray-800 rounded-full px-3 py-1 text-sm text-gray-300">${escapeHtml(catLabels[gs.category])}</span>`;
+
+  gs.currentOrder = [...round.shuffled];
+  renderEventList();
+}
+
+function renderEventList() {
+  const list = document.getElementById('eventList');
+  list.innerHTML = '';
+  gameState.currentOrder.forEach((evt, i) => {
+    const card = document.createElement('div');
+    card.className = 'event-card bg-gray-800 border-2 border-gray-700 rounded-xl p-4 flex items-center gap-3';
+    card.draggable = true;
+    card.dataset.idx = i;
+    card.setAttribute('role', 'listitem');
+    card.setAttribute('aria-label', `Event ${i+1}: ${evt.text}`);
+
+    card.innerHTML = `
+      <span class="text-gray-500 font-bold text-lg w-6 text-center flex-shrink-0">${i+1}</span>
+      <span class="flex-1 text-sm leading-relaxed">${escapeHtml(evt.text)}</span>
+      <div class="flex flex-col gap-1 flex-shrink-0">
+        <button onclick="moveUp(${i})" class="text-gray-500 hover:text-white transition-all leading-none px-2 py-0.5 text-lg" aria-label="Move event ${i+1} up" ${i===0?'disabled':''}>▲</button>
+        <button onclick="moveDown(${i})" class="text-gray-500 hover:text-white transition-all leading-none px-2 py-0.5 text-lg" aria-label="Move event ${i+1} down" ${i===gameState.currentOrder.length-1?'disabled':''}>▼</button>
+      </div>
+    `;
+
+    // Drag events
+    card.addEventListener('dragstart', e => {
+      dragSrcIdx = i;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      document.querySelectorAll('.event-card').forEach(c => c.classList.remove('drag-over'));
+    });
+    card.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      document.querySelectorAll('.event-card').forEach(c => c.classList.remove('drag-over'));
+      card.classList.add('drag-over');
+    });
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      if (dragSrcIdx === null || dragSrcIdx === i) return;
+      const arr = gameState.currentOrder;
+      const [moved] = arr.splice(dragSrcIdx, 1);
+      arr.splice(i, 0, moved);
+      dragSrcIdx = null;
+      renderEventList();
+    });
+
+    list.appendChild(card);
+  });
+}
+
+function moveUp(i) {
+  if (i <= 0) return;
+  const arr = gameState.currentOrder;
+  [arr[i-1], arr[i]] = [arr[i], arr[i-1]];
+  renderEventList();
+}
+
+function moveDown(i) {
+  const arr = gameState.currentOrder;
+  if (i >= arr.length-1) return;
+  [arr[i], arr[i+1]] = [arr[i+1], arr[i]];
+  renderEventList();
+}
+
+function submitOrder() {
+  if (gameState.submitted) return;
+  gameState.submitted = true;
+
+  const round = gameState.rounds[gameState.current];
+  const correct = [...round.events].sort((a,b) => a.year - b.year);
+  const submitted = gameState.currentOrder;
+
+  let wrongCount = 0;
+  submitted.forEach((evt, i) => {
+    if (evt.year !== correct[i].year) wrongCount++;
+  });
+
+  let roundScore = wrongCount === 0 ? 5 : wrongCount === 1 ? 3 : wrongCount === 2 ? 1 : 0;
+  gameState.totalScore += roundScore;
+  gameState.roundScores.push({ round: gameState.current+1, score: roundScore, wrongCount });
+
+  document.getElementById('scoreNum').textContent = gameState.totalScore;
+  document.getElementById('submitBtn').disabled = true;
+  document.getElementById('submitBtn').classList.add('opacity-50');
+
+  // Show feedback
+  const fb = document.getElementById('feedbackArea');
+  const fbc = document.getElementById('feedbackContent');
+  fb.classList.remove('hidden');
+
+  const scoreColors = { 5:'text-green-400', 3:'text-yellow-400', 1:'text-orange-400', 0:'text-red-400' };
+  const msgs = { 5:'Perfect!', 3:'Almost!', 1:'Close...', 0:'Keep practicing!' };
+
+  fbc.innerHTML = `
+    <div class="bg-gray-900 border border-gray-700 rounded-xl p-4 mb-3">
+      <div class="flex items-center justify-between mb-3">
+        <span class="font-semibold">Result: <span class="${scoreColors[roundScore]}">${msgs[roundScore]}</span></span>
+        <span class="${scoreColors[roundScore]} font-bold text-lg">+${roundScore} pts</span>
+      </div>
+      <p class="text-xs text-gray-400 mb-3">Correct chronological order:</p>
+      <div class="space-y-2">
+        ${correct.map((evt, i) => {
+          const submittedEvt = submitted[i];
+          const isRight = submittedEvt.year === evt.year;
+          return `
+            <div class="flex items-start gap-3 p-2 rounded-lg ${isRight ? 'bg-green-900/30 result-correct' : 'bg-red-900/30 result-wrong'}">
+              <span class="text-xs font-mono ${isRight ? 'text-green-400' : 'text-red-400'} font-bold flex-shrink-0 mt-0.5">${escapeHtml(formatYear(evt.year))}</span>
+              <span class="text-sm text-gray-200">${escapeHtml(evt.text)}</span>
+              ${isRight ? '' : `<span class="text-lg flex-shrink-0">❌</span>`}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+
+  if (gameState.current >= 9) {
+    document.getElementById('nextRoundBtn').textContent = 'See Final Results →';
+  }
+}
+
+function nextRound() {
+  gameState.current++;
+  if (gameState.current >= 10) {
+    endGame();
+  } else {
+    renderRound();
+  }
+}
+
+function endGame() {
+  document.getElementById('gameScreen').classList.add('hidden');
+  document.getElementById('resultScreen').classList.remove('hidden');
+
+  const gs = gameState;
+  const maxScore = 50;
+  const pct = Math.round((gs.totalScore / maxScore) * 100);
+  const isNew = setHighScore(gs.category, gs.totalScore);
+
+  const emoji = pct >= 90 ? '🏆' : pct >= 70 ? '🎉' : pct >= 50 ? '📖' : '📚';
+  const title = pct >= 90 ? 'History Master!' : pct >= 70 ? 'Historian!' : pct >= 50 ? 'Good Knowledge!' : 'Keep Studying!';
+
+  document.getElementById('resultEmoji').textContent = emoji;
+  document.getElementById('resultTitle').textContent = title;
+  document.getElementById('resultScore').textContent = `${gs.totalScore}/${maxScore} points`;
+  document.getElementById('resultDetail').textContent = `${pct}% score · ${gs.roundScores.filter(r=>r.score===5).length} perfect rounds`;
+  document.getElementById('hsMsg').textContent = isNew ? '🌟 New High Score!' : `Best: ${getHighScore(gs.category)}/${maxScore}`;
+
+  document.getElementById('roundBreakdown').innerHTML = gs.roundScores.map(r => `
+    <div class="flex items-center justify-between py-1 border-b border-gray-700 text-sm">
+      <span class="text-gray-400">Round ${r.round}</span>
+      <span class="${r.score===5?'text-green-400':r.score===3?'text-yellow-400':r.score===1?'text-orange-400':'text-red-400'} font-medium">
+        ${r.score===5?'✅':r.score===3?'🟡':r.score===1?'🟠':'❌'} ${r.score} pts
+        ${r.wrongCount > 0 ? `<span class="text-gray-500">(${r.wrongCount} wrong)</span>` : ''}
+      </span>
+    </div>
+  `).join('');
+}
+
+showStart();
+</script>
+</body>
+</html>
